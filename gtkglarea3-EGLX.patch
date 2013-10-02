@@ -1,0 +1,203 @@
+--- gtkgl/gdkgl.c	2013-09-29 23:02:52.000000000 +0200
++++ gtkgl/gdkgl.c	2013-09-30 00:05:04.000000000 +0200
+@@ -23,7 +23,8 @@
+ 
+ #include "gdkgl.h"
+ 
+-#include <GL/gl.h>
++#include <GLES/gl.h>
++#include "jwzgles.h"
+ #if defined GDK_WINDOWING_WIN32
+ #   include <gdk/gdkwin32.h>
+ #   define PLATFORM "GDK_WINDOWING_WIN32"
+@@ -35,6 +36,10 @@
+ #   include <cairo-xlib.h>
+ #endif
+ #   define PLATFORM "GDK_WINDOWING_X11"
++#elif defined GDK_WINDOWING_WAYLAND
++#   include "EGLX.h"
++#   include "EGLX-gtkx11.h"
++#   define PLATFORM "GDK_WINDOWING_WAYLAND"
+ #elif defined GDK_WINDOWING_FB
+ #   define PLATFORM "GDK_WINDOWING_FB"
+ #elif defined GDK_WINDOWING_QUARTZ
+@@ -55,7 +60,7 @@
+   HWND      hwnd;
+   GdkGLContext *share;
+   PIXELFORMATDESCRIPTOR pfd;
+-#elif defined GDK_WINDOWING_X11
++#elif defined GDK_WINDOWING_X11 || defined GDK_WINDOWING_WAYLAND
+   Display    *xdisplay;
+   GLXContext  glxcontext;
+ #endif
+@@ -107,7 +112,7 @@
+  */
+ #if defined GDK_WINDOWING_WIN32
+ static void fill_pfd(PIXELFORMATDESCRIPTOR *pfd, int *attriblist);
+-#elif defined GDK_WINDOWING_X11
++#elif defined GDK_WINDOWING_X11 || defined GDK_WINDOWING_WAYLAND
+ static XVisualInfo *get_xvisualinfo(GdkVisual *visual);
+ #endif
+ 
+@@ -120,7 +125,7 @@
+ {
+ #if defined GDK_WINDOWING_WIN32
+   return TRUE;
+-#elif defined GDK_WINDOWING_X11
++#elif defined GDK_WINDOWING_X11 || defined GDK_WINDOWING_WAYLAND
+ #if defined __GTK2__
+   return (glXQueryExtension(GDK_DISPLAY(),NULL,NULL) == True) ? TRUE : FALSE;
+ #elif defined __GTK3__
+@@ -139,7 +144,7 @@
+   vendor = glGetString (GL_VENDOR);
+   version = glGetString (GL_VERSION);
+   extensions = glGetString (GL_EXTENSIONS);
+-#elif defined GDK_WINDOWING_X11
++#elif defined GDK_WINDOWING_X11 || defined GDK_WINDOWING_WAYLAND
+ #if defined __GTK2__
+   vendor = glXGetClientString(GDK_DISPLAY(), GLX_VENDOR);
+   version = glXGetClientString(GDK_DISPLAY(), GLX_VERSION);
+@@ -163,7 +168,7 @@
+ {
+ #if defined GDK_WINDOWING_WIN32
+   return gdk_visual_get_system ();
+-#elif defined GDK_WINDOWING_X11
++#elif defined GDK_WINDOWING_X11 || defined GDK_WINDOWING_WAYLAND
+   Display *dpy;
+   XVisualInfo *vi;
+   GdkVisual *visual;
+@@ -195,7 +200,7 @@
+ 
+ int gdk_gl_get_config(GdkVisual *visual, int attrib)
+ {
+-#if defined GDK_WINDOWING_X11
++#if defined GDK_WINDOWING_X11 || defined GDK_WINDOWING_WAYLAND
+   Display *dpy;
+   XVisualInfo *vi;
+   int value;
+@@ -272,7 +277,7 @@
+     ReleaseDC (context->hwnd, context->hdc);
+   else
+     DeleteDC (context->hdc);
+-#elif defined GDK_WINDOWING_X11
++#elif defined GDK_WINDOWING_X11 || defined GDK_WINDOWING_WAYLAND
+   if (context->glxcontext) {
+     if (context->glxcontext == glXGetCurrentContext())
+       glXMakeCurrent(context->xdisplay, None, NULL);
+@@ -301,7 +306,7 @@
+ GdkGLContext *
+ gdk_gl_context_new(GdkVisual *visual)
+ {
+-#if defined GDK_WINDOWING_WIN32 || defined GDK_WINDOWING_X11
++#if defined GDK_WINDOWING_WIN32 || defined GDK_WINDOWING_X11 || defined GDK_WINDOWING_WAYLAND
+   return gdk_gl_context_share_new(visual, NULL, FALSE);
+ #else
+   g_warning ("gdk_gl_context_new not implemented on " PLATFORM);
+@@ -315,7 +320,7 @@
+ {
+ #if defined GDK_WINDOWING_WIN32
+   GdkGLContext *context;
+-#elif defined GDK_WINDOWING_X11
++#elif defined GDK_WINDOWING_X11 || defined GDK_WINDOWING_WAYLAND
+   Display *dpy;
+   XVisualInfo *vi;
+   GLXContext glxcontext;
+@@ -352,7 +357,7 @@
+   context->pfd.cColorBits = 24;
+   context->pfd.cDepthBits = 32;
+   context->pfd.iLayerType = PFD_MAIN_PLANE;
+-#elif defined GDK_WINDOWING_X11
++#elif defined GDK_WINDOWING_X11 || defined GDK_WINDOWING_WAYLAND
+ #if defined __GTK3__
+   dpy = gdk_x11_get_default_xdisplay();
+ #elif defined __GTK2__
+@@ -365,7 +370,7 @@
+                                 direct ? True : False);
+ 
+   XFree(vi);
+-  if (glxcontext == NULL) {
++  if (glxcontext == NULL) {  
+     g_object_unref(context);
+     return NULL;
+   }
+@@ -381,7 +386,7 @@
+ {
+ #if defined GDK_WINDOWING_WIN32
+   GdkGLContext *context;
+-#elif defined GDK_WINDOWING_X11
++#elif defined GDK_WINDOWING_X11 || defined GDK_WINDOWING_WAYLAND
+   GdkVisual *visual;
+ #else
+   g_warning ("gdk_gl_context_attrlist_share_new not implemented on " PLATFORM);
+@@ -403,7 +408,7 @@
+   fill_pfd(&context->pfd, attrlist);
+ 
+   return context;
+-#elif defined GDK_WINDOWING_X11
++#elif defined GDK_WINDOWING_X11 || defined GDK_WINDOWING_WAYLAND
+   visual = gdk_gl_choose_visual(attrlist);
+   if (!visual)
+     return NULL;
+@@ -464,7 +469,7 @@
+   wglMakeCurrent (context->hdc, context->hglrc);
+ 
+   return TRUE;
+-#elif defined GDK_WINDOWING_X11
++#elif defined GDK_WINDOWING_X11 || defined GDK_WINDOWING_WAYLAND
+ #if defined __GTK2__
+   return (glXMakeCurrent(context->xdisplay, GDK_WINDOW_XWINDOW(drawable),
+ #elif defined __GTK3__
+@@ -523,7 +528,7 @@
+   }
+   SwapBuffers (hdc);
+   ReleaseDC (hwnd, hdc);
+-#elif defined GDK_WINDOWING_X11
++#elif defined GDK_WINDOWING_X11 || defined GDK_WINDOWING_WAYLAND
+ #if defined __GTK2__
+   glXSwapBuffers(GDK_WINDOW_XDISPLAY(drawable), GDK_WINDOW_XWINDOW(drawable));
+ #elif defined __GTK3__
+@@ -538,7 +543,7 @@
+ {
+ #if defined GDK_WINDOWING_WIN32
+   GdiFlush();
+-#elif defined GDK_WINDOWING_X11
++#elif defined GDK_WINDOWING_X11 || defined GDK_WINDOWING_WAYLAND
+   glXWaitX();
+ #endif
+ }
+@@ -547,7 +552,7 @@
+ {
+ #if defined GDK_WINDOWING_WIN32
+   glFinish();
+-#elif defined GDK_WINDOWING_X11
++#elif defined GDK_WINDOWING_X11 || defined GDK_WINDOWING_WAYLAND
+   glXWaitGL();
+ #endif
+ }
+@@ -925,7 +930,7 @@
+ }
+ 
+ 
+-#elif defined GDK_WINDOWING_X11
++#elif defined GDK_WINDOWING_X11 || defined GDK_WINDOWING_WAYLAND
+ static XVisualInfo *get_xvisualinfo(GdkVisual *visual)
+ {
+   Display *dpy;
+--- gtkgl/gtkglarea.c	2013-09-29 23:21:16.000000000 +0200
++++ gtkgl/gtkglarea.c	2013-09-29 23:23:52.000000000 +0200
+@@ -131,13 +131,13 @@
+ {
+   GdkGLContext *glcontext;
+   GtkGLArea *gl_area;
+-#if defined GDK_WINDOWING_X11
++#if defined GDK_WINDOWING_X11 || defined GDK_WINDOWING_WAYLAND
+   GdkVisual *visual;
+ #endif
+ 
+   g_return_val_if_fail(share == NULL || GTK_IS_GL_AREA(share), NULL);
+ 
+-#if defined GDK_WINDOWING_X11
++#if defined GDK_WINDOWING_X11 || defined GDK_WINDOWING_WAYLAND
+   visual = gdk_gl_choose_visual(attrlist);
+   if (visual == NULL)
+     return NULL;
